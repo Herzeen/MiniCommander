@@ -2,54 +2,41 @@ import sys
 import os
 import shutil
 import json
+import subprocess
 
-# Importy PyQt5 – elementy GUI
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QHBoxLayout, QVBoxLayout,
     QTreeView, QLabel, QFileSystemModel,
     QDialog, QListWidget, QInputDialog, QMessageBox,
-    QPushButton, QShortcut
+    QPushButton, QShortcut, QLineEdit
 )
 from PyQt5.QtCore import QDir, Qt
 from PyQt5.QtGui import QFont, QKeySequence
 
-# Plik konfiguracyjny z regułami sortowania
 CONFIG_FILE = "config.json"
 
 
-# =========================================================
-# OKNO EDYCJI REGUŁ SORTOWANIA
-# =========================================================
+# ===== EDYTOR REGUŁ =====
 class ConfigEditor(QDialog):
     def __init__(self, rules):
         super().__init__()
-
-        # Ustawienie tytułu okna
         self.setWindowTitle("Edytuj reguły")
-
-        # Aktualne reguły przekazane z głównej aplikacji
         self.rules = rules
 
-        # Layout pionowy
         layout = QVBoxLayout()
-
-        # Lista wyświetlająca reguły
         self.list_widget = QListWidget()
         self.load_rules()
 
-        # Przyciski operacji
         btn_add = QPushButton("Dodaj")
         btn_edit = QPushButton("Edytuj")
         btn_delete = QPushButton("Usuń")
         btn_save = QPushButton("Zapisz")
 
-        # Podpięcie funkcji do przycisków
         btn_add.clicked.connect(self.add_rule)
         btn_edit.clicked.connect(self.edit_rule)
         btn_delete.clicked.connect(self.delete_rule)
         btn_save.clicked.connect(self.save_rules)
 
-        # Dodanie elementów do layoutu
         layout.addWidget(self.list_widget)
         layout.addWidget(btn_add)
         layout.addWidget(btn_edit)
@@ -58,13 +45,11 @@ class ConfigEditor(QDialog):
 
         self.setLayout(layout)
 
-    # Wczytanie reguł do listy
     def load_rules(self):
         self.list_widget.clear()
         for folder, exts in self.rules.items():
             self.list_widget.addItem(f"{folder}: {', '.join(exts)}")
 
-    # Dodanie nowej reguły
     def add_rule(self):
         folder, ok = QInputDialog.getText(self, "Folder", "Nazwa folderu:")
         if ok and folder:
@@ -73,106 +58,96 @@ class ConfigEditor(QDialog):
                 self.rules[folder] = [e.strip().lower() for e in exts.split(",") if e.strip()]
                 self.load_rules()
 
-    # Edycja istniejącej reguły
     def edit_rule(self):
         item = self.list_widget.currentItem()
         if not item:
             return
-
         folder = item.text().split(":")[0]
         exts = ",".join(self.rules[folder])
-
         new_exts, ok = QInputDialog.getText(self, "Edytuj", "Rozszerzenia:", text=exts)
         if ok:
             self.rules[folder] = [e.strip().lower() for e in new_exts.split(",") if e.strip()]
             self.load_rules()
 
-    # Usunięcie reguły
     def delete_rule(self):
         item = self.list_widget.currentItem()
         if not item:
             return
-
         folder = item.text().split(":")[0]
         self.rules.pop(folder, None)
         self.load_rules()
 
-    # Zapis reguł do pliku JSON
     def save_rules(self):
-        try:
-            with open(CONFIG_FILE, "w") as f:
-                json.dump(self.rules, f, indent=4)
-            QMessageBox.information(self, "OK", "Zapisano!")
-            self.accept()
-        except Exception as e:
-            QMessageBox.critical(self, "Błąd", str(e))
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(self.rules, f, indent=4)
+        QMessageBox.information(self, "OK", "Zapisano!")
+        self.accept()
 
 
-# =========================================================
-# GŁÓWNA APLIKACJA
-# =========================================================
+# ===== GŁÓWNA APLIKACJA =====
 class FileManager(QWidget):
     def __init__(self):
         super().__init__()
 
-        # Usunięcie standardowego paska okna
         self.setWindowFlag(Qt.FramelessWindowHint)
-
-        # Rozmiar okna i font
         self.setGeometry(100, 100, 1100, 600)
         self.setFont(QFont("Consolas", 10))
 
-        # Wczytanie reguł
         self.rules = self.load_config()
-
-        # Aktywny panel (lewy/prawy)
         self.active_panel = "left"
 
-        # Layouty
         main_layout = QVBoxLayout()
         panels_layout = QHBoxLayout()
 
-        # Model plików (system plików)
         self.model = QFileSystemModel()
         self.model.setRootPath(QDir.rootPath())
 
-        # LEWY PANEL
+        # ===== LEWY PANEL =====
+        left_layout = QVBoxLayout()
+        self.left_path = QLineEdit()
+        self.left_path.setReadOnly(True)
+
         self.left_view = QTreeView()
         self.left_view.setModel(self.model)
         self.left_view.setRootIndex(self.model.index(os.getcwd()))
 
-        # PRAWY PANEL
+        left_layout.addWidget(self.left_path)
+        left_layout.addWidget(self.left_view)
+
+        # ===== PRAWY PANEL =====
+        right_layout = QVBoxLayout()
+        self.right_path = QLineEdit()
+        self.right_path.setReadOnly(True)
+
         self.right_view = QTreeView()
         self.right_view.setModel(self.model)
         self.right_view.setRootIndex(self.model.index(os.getcwd()))
 
-        panels_layout.addWidget(self.left_view)
-        panels_layout.addWidget(self.right_view)
+        right_layout.addWidget(self.right_path)
+        right_layout.addWidget(self.right_view)
 
-        # Pasek informacji
+        panels_layout.addLayout(left_layout)
+        panels_layout.addLayout(right_layout)
+
         self.info_label = QLabel("Gotowe")
-
-        # Pasek skrótów klawiszowych
         self.footer = QLabel(
-            " TAB panel | ENTER otwórz | BACK cofaj | F5 kopiuj | F6 przenieś | F7 sortuj | F8 reguły | F10 wyjście "
+            " TAB panel | ENTER otwórz | BACK cofaj | F5 kopiuj | F6 przenieś | F7 sortuj | F8 reguły | DEL usuń | F10 wyjście "
         )
 
-        # Składanie layoutu
         main_layout.addLayout(panels_layout)
         main_layout.addWidget(self.info_label)
         main_layout.addWidget(self.footer)
 
         self.setLayout(main_layout)
 
-        # Skrót TAB (zmiana panelu)
+        # TAB
         self.tab_shortcut = QShortcut(QKeySequence("Tab"), self)
         self.tab_shortcut.activated.connect(self.switch_panel)
 
+        self.update_paths()
         self.update_active_panel_style()
 
-    # =========================================================
-    # PANEL
-    # =========================================================
+    # ===== PANEL =====
     def switch_panel(self):
         if self.active_panel == "left":
             self.active_panel = "right"
@@ -180,10 +155,8 @@ class FileManager(QWidget):
         else:
             self.active_panel = "left"
             self.left_view.setFocus()
-
         self.update_active_panel_style()
 
-    # Wizualne zaznaczenie aktywnego panelu
     def update_active_panel_style(self):
         if self.active_panel == "left":
             self.left_view.setStyleSheet("border: 2px solid yellow;")
@@ -192,33 +165,40 @@ class FileManager(QWidget):
             self.right_view.setStyleSheet("border: 2px solid yellow;")
             self.left_view.setStyleSheet("border: 1px solid gray;")
 
-    # Pobranie aktywnego panelu
     def get_active_view(self):
         return self.left_view if self.active_panel == "left" else self.right_view
 
-    # Pobranie drugiego panelu
     def get_other_view(self):
         return self.right_view if self.active_panel == "left" else self.left_view
 
-    # =========================================================
-    # NAWIGACJA
-    # =========================================================
-    def open_dir(self):
+    # ===== PATH BAR =====
+    def update_paths(self):
+        self.left_path.setText(self.model.filePath(self.left_view.rootIndex()))
+        self.right_path.setText(self.model.filePath(self.right_view.rootIndex()))
+
+    # ===== NAWIGACJA =====
+    def open_item(self):
         view = self.get_active_view()
         index = view.currentIndex()
+        path = self.model.filePath(index)
 
-        if self.model.isDir(index):
+        if os.path.isdir(path):
             view.setRootIndex(index)
+            self.update_paths()
+        else:
+            try:
+                os.startfile(path)
+            except:
+                subprocess.call(["xdg-open", path])
 
     def go_up(self):
         view = self.get_active_view()
         current = self.model.filePath(view.rootIndex())
         parent = os.path.dirname(current)
         view.setRootIndex(self.model.index(parent))
+        self.update_paths()
 
-    # =========================================================
-    # FUNKCJE POMOCNICZE
-    # =========================================================
+    # ===== POMOCNICZE =====
     def get_unique_name(self, path):
         base, ext = os.path.splitext(path)
         i = 1
@@ -227,9 +207,7 @@ class FileManager(QWidget):
             i += 1
         return path
 
-    # =========================================================
-    # OPERACJE NA PLIKACH
-    # =========================================================
+    # ===== OPERACJE =====
     def copy_file(self):
         try:
             src = self.get_active_view()
@@ -268,9 +246,6 @@ class FileManager(QWidget):
         except Exception as e:
             self.info_label.setText(f"Błąd: {e}")
 
-    # =========================================================
-    # SORTOWANIE
-    # =========================================================
     def sort_files(self):
         try:
             view = self.get_active_view()
@@ -278,7 +253,6 @@ class FileManager(QWidget):
 
             for f in os.listdir(folder):
                 path = os.path.join(folder, f)
-
                 if os.path.isfile(path):
                     ext = os.path.splitext(f)[1].lower()
                     target = "Inne"
@@ -290,7 +264,6 @@ class FileManager(QWidget):
 
                     target_path = os.path.join(folder, target)
                     os.makedirs(target_path, exist_ok=True)
-
                     shutil.move(path, self.get_unique_name(os.path.join(target_path, f)))
 
             self.info_label.setText("Sortowanie OK")
@@ -298,33 +271,56 @@ class FileManager(QWidget):
         except Exception as e:
             self.info_label.setText(f"Błąd: {e}")
 
-    # =========================================================
-    # EDYTOR REGUŁ
-    # =========================================================
+    def delete_item(self):
+        try:
+            view = self.get_active_view()
+            index = view.currentIndex()
+            path = self.model.filePath(index)
+
+            if not os.path.exists(path):
+                return
+
+            name = os.path.basename(path)
+
+            reply = QMessageBox.question(
+                self,
+                "Usuwanie",
+                f"Czy na pewno chcesz usunąć:\n{name}?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if reply != QMessageBox.Yes:
+                return
+
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+
+            self.info_label.setText("Usunięto")
+
+        except Exception as e:
+            self.info_label.setText(f"Błąd: {e}")
+
     def open_config_editor(self):
         editor = ConfigEditor(self.rules)
         if editor.exec_():
             self.rules = self.load_config()
 
-    # =========================================================
-    # CONFIG
-    # =========================================================
+    # ===== CONFIG =====
     def load_config(self):
         if not os.path.exists(CONFIG_FILE):
             default = {"Obrazy": [".jpg"], "Dokumenty": [".pdf"], "Inne": []}
             with open(CONFIG_FILE, "w") as f:
                 json.dump(default, f, indent=4)
             return default
-
         with open(CONFIG_FILE) as f:
             return json.load(f)
 
-    # =========================================================
-    # OBSŁUGA KLAWIATURY
-    # =========================================================
+    # ===== KLAWIATURA =====
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Return:
-            self.open_dir()
+            self.open_item()
         elif event.key() == Qt.Key_Backspace:
             self.go_up()
         elif event.key() == Qt.Key_F5:
@@ -335,21 +331,21 @@ class FileManager(QWidget):
             self.sort_files()
         elif event.key() == Qt.Key_F8:
             self.open_config_editor()
+        elif event.key() == Qt.Key_Delete:
+            self.delete_item()
         elif event.key() == Qt.Key_F10:
             self.close()
 
 
-# =========================================================
-# START PROGRAMU
-# =========================================================
+# ===== START =====
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    # Styl DOS
     app.setStyleSheet("""
         QWidget { background-color: #000080; color: #FFFF00; font-family: Consolas; }
         QTreeView { background-color: #000080; color: #FFFFFF; }
         QTreeView::item:selected { background-color: yellow; color: black; }
+        QLineEdit { background-color: #000080; color: white; border: 1px solid yellow; }
     """)
 
     window = FileManager()
