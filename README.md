@@ -32,12 +32,13 @@ Program posiada interfejs graficzny stylizowany na klasyczne środowisko DOS.
 | Klawisz     | Funkcja                     |
 |------------|----------------------------|
 | TAB        | Zmiana aktywnego panelu    |
-| ENTER      | Wejście do folderu         |
+| ENTER      | Otwarcie folderu/pliku     |
 | BACKSPACE  | Powrót do folderu wyżej    |
 | F5         | Kopiowanie                 |
 | F6         | Przenoszenie               |
 | F7         | Sortowanie plików          |
 | F8         | Edycja reguł               |
+| DEL        | Usuwanie plików\folderów   |
 | F10        | Zamknięcie programu        |
 
 ---
