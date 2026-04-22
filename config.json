@@ -1,0 +1,14 @@
+{
+    "Obrazy": [
+        ".jpg",
+        ".png"
+    ],
+    "Dokumenty": [
+        ".pdf",
+        ".txt"
+    ],
+    "Inne": [],
+    "py": [
+        ".py"
+    ]
+}
